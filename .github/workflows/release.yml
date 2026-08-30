@@ -1,0 +1,72 @@
+name: Release
+
+# Draft a release in the GitHub UI, pick the tag, publish. Everything below
+# reacts to that. Nothing here pushes to main, so `main` can be protected
+# without exempting anyone.
+on:
+  release:
+    types: [published]
+
+permissions: {}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Read the version from the tag
+        id: version
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          version="${TAG#v}"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+((a|b|rc)[0-9]+)?$ ]]; then
+            echo "::error::Tag '$TAG' is not a version. Use vX.Y.Z."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      # Stamped into the archive only, never committed back. The tag is the
+      # version's single source of truth, so `main`'s manifest carries whatever
+      # the last release left there and nothing reads it.
+      - name: Stamp the version into the manifest
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" \
+            custom_components/livoltek_portal/manifest.json
+          grep '"version"' custom_components/livoltek_portal/manifest.json
+
+      # Zipped from inside the component directory: HACS unpacks the archive
+      # straight into config/custom_components/livoltek_portal/, so a wrapping
+      # folder would nest the integration one level too deep.
+      - name: Build the installable archive
+        run: |
+          cd custom_components/livoltek_portal
+          zip -r -q "$GITHUB_WORKSPACE/livoltek_portal.zip" . -x '*.pyc' -x '*__pycache__*'
+
+      - name: Attach the archive to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$TAG" livoltek_portal.zip --clobber
+
+      # Appended rather than written: whatever you generated or typed in the
+      # UI stays, and this adds the part that is the same every time.
+      - name: Append the install instructions to the release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          body=$(gh release view "$TAG" --json body --jq .body)
+          if [[ "$body" == *"<!-- release-footer -->"* ]]; then
+            echo "Footer already present; leaving the notes alone."
+            exit 0
+          fi
+          printf '%s\n\n%s\n' "$body" "$(cat .github/release-footer.md)" \
+            | gh release edit "$TAG" --notes-file -

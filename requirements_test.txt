@@ -1,0 +1,4 @@
+# Pin the release whose transitive `homeassistant` is >= 2025.2.0, which is the
+# floor declared in hacs.json. Bump both together, never one alone.
+pytest-homeassistant-custom-component>=0.13.200
+aioresponses>=0.7.6

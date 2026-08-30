@@ -1,0 +1,44 @@
+name: Bug report
+description: Something in the integration behaves incorrectly
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Attach the **diagnostics** download from the integration's three-dot
+        menu. It is redacted. Do not paste raw API responses or tokens.
+  - type: input
+    id: ha_version
+    attributes:
+      label: Home Assistant version
+    validations:
+      required: true
+  - type: input
+    id: integration_version
+    attributes:
+      label: Integration version
+    validations:
+      required: true
+  - type: dropdown
+    id: region
+    attributes:
+      label: Portal region
+      options: [EMEA, International, Asia]
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Inverter model
+      placeholder: Hyper-6000
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: What happened
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      render: text

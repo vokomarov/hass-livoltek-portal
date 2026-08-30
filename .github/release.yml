@@ -1,0 +1,20 @@
+# Shapes the "Generate release notes" button in the release draft UI. This is
+# GitHub's own configuration file, not a workflow -- no action to install, and
+# it costs nothing when there are no labelled pull requests to sort.
+changelog:
+  exclude:
+    labels: [skip-changelog]
+    authors: [dependabot, github-actions]
+  categories:
+    - title: Breaking changes
+      labels: [breaking-change]
+    - title: New entities and features
+      labels: [enhancement, feature]
+    - title: Fixes
+      labels: [bug, fix]
+    - title: Documentation
+      labels: [documentation]
+    - title: Maintenance
+      labels: [chore, ci, dependencies]
+    - title: Other changes
+      labels: ["*"]

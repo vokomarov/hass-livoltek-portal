@@ -1,0 +1,18 @@
+[tool.ruff]
+target-version = "py313"
+line-length = 88
+# ruff formats Python blocks inside Markdown. The plan and spec quote code as
+# illustration, not as source, and reformatting them would churn documents the
+# task briefs are extracted from.
+extend-exclude = ["docs"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+norecursedirs = [".git", "docs"]
+# Bounds a future deadlock (e.g. a regression in the auth lock) to a failure
+# instead of a hung CI job. Generous relative to the suite's real runtime.
+timeout = 60

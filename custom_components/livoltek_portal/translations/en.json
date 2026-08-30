@@ -1,0 +1,117 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Livoltek Portal",
+        "description": "Pick the portal your account belongs to. If you are unsure, sign in on the web and read the address bar: it starts with evs for EMEA, www for International, and aa for Asia.",
+        "data": {
+          "region": "Region"
+        }
+      },
+      "credentials": {
+        "title": "Sign in",
+        "description": "Use the same account you sign in to the Livoltek portal with. Home Assistant stores a hash of your password so it can renew the session on its own.",
+        "data": {
+          "login_account": "Email or phone number",
+          "password": "Password",
+          "account_type": "Account type"
+        }
+      },
+      "captcha": {
+        "title": "Verification code",
+        "description": "Type the characters shown below.\n\n![Captcha]({captcha_url})",
+        "data": {
+          "image_code": "Verification code"
+        }
+      },
+      "devices": {
+        "title": "Choose devices",
+        "description": "Each selected inverter becomes a device with its own sensors.",
+        "data": {
+          "devices": "Devices",
+          "scan_interval": "Polling interval"
+        },
+        "data_description": {
+          "scan_interval": "Seconds between cloud polls. Values under 60 seconds increase the risk of rate limiting without producing fresher data."
+        }
+      },
+      "names": {
+        "title": "Name your devices",
+        "description": "This name becomes the prefix of every entity id, so pick something short you can type from memory in an automation. \"Loft inverter\" gives `sensor.loft_inverter_battery_soc`.\n\nThe default is the model name. Without a name here the portal's own label is used, which contains the inverter serial number."
+      },
+      "reauth_confirm": {
+        "title": "Sign in again",
+        "description": "The Livoltek portal rejected the stored session for {account}. Enter the password again.",
+        "data": {
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "The portal rejected that account or password.",
+      "invalid_captcha": "That verification code was not accepted. A new image has been loaded.",
+      "unknown_account": "The portal does not know that account. Check the region you picked - accounts are not shared between the EMEA, International, and Asia portals.",
+      "cannot_connect": "Could not reach the Livoltek portal.",
+      "no_devices_selected": "Select at least one device.",
+      "invalid_device_name": "Enter a name containing at least one letter or digit.",
+      "duplicate_device_name": "Two devices would produce the same entity ids. Give this one a different name.",
+      "unknown": "Unexpected error. Check the Home Assistant log."
+    },
+    "abort": {
+      "already_configured": "This Livoltek account is already set up.",
+      "no_devices": "That account has no energy storage devices.",
+      "reauth_successful": "Signed in again.",
+      "unique_id_mismatch": "Those credentials belong to a different Livoltek account than the one configured here. Sign in with the original account instead."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Livoltek Portal options",
+        "data": {
+          "devices": "Devices",
+          "scan_interval": "Polling interval"
+        },
+        "data_description": {
+          "scan_interval": "Seconds between cloud polls."
+        }
+      }
+    },
+    "error": {
+      "no_devices_selected": "Select at least one device."
+    }
+  },
+  "issues": {
+    "captcha_required": {
+      "title": "Livoltek sign-in needs a verification code",
+      "description": "The portal asked for a captcha while renewing the session for {account}, which Home Assistant cannot answer on its own. Open the integration and sign in again to restore polling."
+    }
+  },
+  "selector": {
+    "region": {
+      "options": {
+        "emea": "EMEA",
+        "international": "International",
+        "asia": "Asia"
+      }
+    },
+    "account_type": {
+      "options": {
+        "email": "Email",
+        "phone": "Phone number"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "battery_status": {
+        "name": "Battery status",
+        "state": {
+          "charging": "Charging",
+          "idle": "Idle",
+          "discharging": "Discharging"
+        }
+      }
+    }
+  }
+}

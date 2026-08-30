@@ -1,0 +1,21 @@
+{
+  "code": null,
+  "data": [
+    {
+      "id": 12345,
+      "inverter_sn": "HP1XXXXHSC1XXXXX",
+      "name": "HP1XXXXHSC1XXXXX(Hyper-6000)",
+      "powerStation": 54321,
+      "powerStationName": "Home",
+      "productTypeName": "Hyper-6000",
+      "status": 0,
+      "template": 44,
+      "isOld": 0,
+      "iemsDevice": 0
+    }
+  ],
+  "message": null,
+  "msgCode": "operate.success",
+  "msg_code": "operate.success",
+  "total": 1
+}

@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Tooling
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Research material lives outside this repository and stays there. Captures can
+# carry tokens, serials, and account data, and the notes behind them are not
+# part of what this project publishes.
+docs/api/
+docs/probes/
+docs/superpowers/
