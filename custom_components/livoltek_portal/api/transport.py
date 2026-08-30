@@ -28,7 +28,9 @@ SUCCESS_CODES: Final = frozenset({"operate.success", "success"})
 _TOKEN_CODES: Final = frozenset({"token.not.set", "token.expired", "token.invalid"})
 _CAPTCHA_CODES: Final = frozenset({"err.password.need.verify"})
 _UNKNOWN_ACCOUNT_CODES: Final = frozenset(
-    {"err.user.not.exist", "err.account.not.exist"}
+    # `no.user` is what login/customer returns for an account that does not
+    # exist on this regional host -- i.e. the wrong region was picked.
+    {"err.user.not.exist", "err.account.not.exist", "no.user"}
 )
 _PASSWORD_CODES: Final = frozenset({"err.password"})
 

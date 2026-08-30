@@ -97,7 +97,16 @@ CREDENTIALS_SCHEMA = vol.Schema(
     }
 )
 
-CAPTCHA_SCHEMA = vol.Schema({vol.Required(CONF_IMAGE_CODE): str})
+# The captcha rides on the sign-in fields, not a form of its own: when the
+# portal demands a code, the user confirms account and password on the same
+# form, and a wrong password re-renders here with a fresh image.
+CAPTCHA_SCHEMA = CREDENTIALS_SCHEMA.extend(
+    {
+        vol.Required(CONF_IMAGE_CODE): TextSelector(
+            TextSelectorConfig(type=TextSelectorType.TEXT)
+        )
+    }
+)
 
 REAUTH_CONFIRM_SCHEMA = vol.Schema(
     {
@@ -105,6 +114,15 @@ REAUTH_CONFIRM_SCHEMA = vol.Schema(
             TextSelectorConfig(
                 type=TextSelectorType.PASSWORD, autocomplete="current-password"
             )
+        )
+    }
+)
+
+# Reauth has no account or region field, so its captcha form is password + code.
+REAUTH_CAPTCHA_SCHEMA = REAUTH_CONFIRM_SCHEMA.extend(
+    {
+        vol.Required(CONF_IMAGE_CODE): TextSelector(
+            TextSelectorConfig(type=TextSelectorType.TEXT)
         )
     }
 )
@@ -216,6 +234,25 @@ class LivoltekConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         if user_input is None:
             return await self._async_show_captcha()
+        # The captcha form carries the sign-in fields too, so a rejected
+        # password can be corrected here instead of bouncing back a step.
+        if self._reauth_entry is not None:
+            entry = self._reauth_entry
+            self._credentials = {
+                CONF_LOGIN_ACCOUNT: entry.data[CONF_LOGIN_ACCOUNT],
+                CONF_PASSWORD_MD5: hash_password(user_input[CONF_PASSWORD]),
+                CONF_ACCOUNT_TYPE: entry.data.get(
+                    CONF_ACCOUNT_TYPE, DEFAULT_ACCOUNT_TYPE
+                ),
+            }
+        else:
+            self._credentials = {
+                CONF_LOGIN_ACCOUNT: user_input[CONF_LOGIN_ACCOUNT],
+                CONF_PASSWORD_MD5: hash_password(user_input[CONF_PASSWORD]),
+                CONF_ACCOUNT_TYPE: user_input.get(
+                    CONF_ACCOUNT_TYPE, DEFAULT_ACCOUNT_TYPE
+                ),
+            }
         return await self._async_try_login(
             step_id="captcha", image_code=user_input[CONF_IMAGE_CODE]
         )
@@ -329,10 +366,10 @@ class LivoltekConfigFlow(ConfigFlow, domain=DOMAIN):
         self, *, step_id: str, image_code: str | None = None
     ) -> ConfigFlowResult:
         """One login attempt; every failure lands back on a form."""
-        # A captcha submission reuses the client built when the challenge was
-        # fetched (`_async_show_captcha` guarantees `self._client` is set);
-        # every other path starts a fresh client for this attempt.
-        client = self._client if image_code else self._build_client()
+        # Always start a fresh client: the aiohttp session (and its cookie jar,
+        # which the captcha image id is bound to) is shared, so a rebuild keeps
+        # the challenge valid while discarding any half-built auth state.
+        client = self._build_client()
         assert self._auth is not None
 
         try:
@@ -344,13 +381,21 @@ class LivoltekConfigFlow(ConfigFlow, domain=DOMAIN):
             errors = {"base": "invalid_captcha"} if image_code else None
             return await self._async_show_captcha(errors=errors)
         except LivoltekUnknownAccountError:
-            return self._retry(step_id, "unknown_account")
+            return await self._fail(step_id, "unknown_account")
         except LivoltekAuthError:
-            return self._retry(step_id, "invalid_auth")
+            return await self._fail(step_id, "invalid_auth")
         except LivoltekConnectionError:
-            return self._retry(step_id, "cannot_connect")
-        except LivoltekApiError:
-            return self._retry(step_id, "unknown")
+            return await self._fail(step_id, "cannot_connect")
+        except LivoltekApiError as err:
+            # `unknown` means the portal returned a msg_code we do not map yet.
+            # Log it (a status code, not account data) so it is diagnosable
+            # instead of vanishing into a generic form error.
+            _LOGGER.warning(
+                "Login returned an unmapped portal msg_code %r: %s",
+                err.msg_code,
+                err.message or "",
+            )
+            return await self._fail(step_id, "unknown")
 
         assert self._session is not None
         await self.async_set_unique_id(self._session.owner_id)
@@ -377,17 +422,33 @@ class LivoltekConfigFlow(ConfigFlow, domain=DOMAIN):
         try:
             self._devices = await client.async_list_devices()
         except (LivoltekApiError, LivoltekConnectionError):
-            return self._retry(step_id, "cannot_connect")
+            return await self._fail(step_id, "cannot_connect")
         if not self._devices:
             return self.async_abort(reason="no_devices")
         return await self.async_step_devices()
 
+    async def _fail(self, step_id: str, error: str) -> ConfigFlowResult:
+        """Re-show the form the attempt came from with an error.
+
+        A captcha submission re-renders the captcha form itself (a fresh image
+        plus the sign-in fields), so a rejected password or account is corrected
+        in place. Re-showing that step needs the captcha_url placeholder --
+        without it the frontend throws MISSING_VALUE and blanks the form -- which
+        is why the captcha path goes through `_async_show_captcha`, not the plain
+        `_retry`.
+        """
+        if step_id == "captcha":
+            return await self._async_show_captcha(errors={"base": error})
+        return self._retry(step_id, error)
+
     def _retry(self, step_id: str, error: str) -> ConfigFlowResult:
+        """Re-show the credentials form (or the reauth form) with an error."""
         errors = {"base": error}
         if step_id == "reauth_confirm":
             return self._show_reauth_confirm(errors=errors)
-        schema = {"credentials": CREDENTIALS_SCHEMA, "captcha": CAPTCHA_SCHEMA}[step_id]
-        return self.async_show_form(step_id=step_id, data_schema=schema, errors=errors)
+        return self.async_show_form(
+            step_id="credentials", data_schema=CREDENTIALS_SCHEMA, errors=errors
+        )
 
     def _show_reauth_confirm(
         self, errors: dict[str, str] | None = None
@@ -413,13 +474,28 @@ class LivoltekConfigFlow(ConfigFlow, domain=DOMAIN):
             image_id, image_field = await self._client.async_get_captcha()
             image, content_type = decode_captcha_image(image_field)
         except (LivoltekApiError, LivoltekConnectionError):
-            return self._retry("credentials", "cannot_connect")
+            fallback = "reauth_confirm" if self._reauth_entry else "credentials"
+            return self._retry(fallback, "cannot_connect")
 
         self._image_id = image_id
         self._captcha_token = await store.async_store(image, content_type)
+        if self._reauth_entry is not None:
+            schema: vol.Schema = REAUTH_CAPTCHA_SCHEMA
+        else:
+            # Prefill the account and type the user already typed; the password
+            # field (a PASSWORD selector) is intentionally left blank to retype.
+            schema = self.add_suggested_values_to_schema(
+                CAPTCHA_SCHEMA,
+                {
+                    CONF_LOGIN_ACCOUNT: self._credentials.get(CONF_LOGIN_ACCOUNT, ""),
+                    CONF_ACCOUNT_TYPE: self._credentials.get(
+                        CONF_ACCOUNT_TYPE, DEFAULT_ACCOUNT_TYPE
+                    ),
+                },
+            )
         return self.async_show_form(
             step_id="captcha",
-            data_schema=CAPTCHA_SCHEMA,
+            data_schema=schema,
             errors=errors,
             description_placeholders=captcha_markdown(self._captcha_token),
         )
