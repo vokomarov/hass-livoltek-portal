@@ -118,6 +118,7 @@ why the job builds and attaches it in the same run that creates the release.
 ## Manual verification
 
 Unit tests cannot exercise a real inverter. Before a release that touches
-polling, units, or the config flow, work through
-[the end-to-end checklist](e2e-checklist.md) against real hardware and record
-the results.
+polling, units, or the config flow, verify the integration against real
+hardware — install it, sign in, confirm the devices and energy-dashboard
+totals behave — and keep the results outside the repository, since captures
+carry tokens, serials, and account data.

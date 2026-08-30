@@ -17,8 +17,13 @@
       },
       "captcha": {
         "title": "Verification code",
-        "description": "Type the characters shown below.\n\n![Captcha]({captcha_url})",
-        "data": { "image_code": "Verification code" }
+        "description": "The portal asked for a verification code. Confirm your sign-in details and type the characters shown below.\n\n![Captcha]({captcha_url})",
+        "data": {
+          "login_account": "Email or phone number",
+          "password": "Password",
+          "account_type": "Account type",
+          "image_code": "Verification code"
+        }
       },
       "devices": {
         "title": "Choose devices",

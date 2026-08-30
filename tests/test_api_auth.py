@@ -104,7 +104,7 @@ async def test_login_posts_the_wire_shape_including_the_typo() -> None:
     assert body["password"] == "abc123"
     assert body["acctount_type"] == "email"  # the API's typo, reproduced verbatim
     assert body["device_name"] == "Home Assistant"
-    assert body["device_type"] == "phone"
+    assert body["device_type"] == 0
     assert body["language"] == "en"
     assert "image_id" not in body
     assert result.access_token == token

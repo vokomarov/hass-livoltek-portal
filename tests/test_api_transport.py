@@ -50,6 +50,7 @@ def test_camel_case_is_used_when_snake_case_is_missing() -> None:
         ("err.password.need.verify", LivoltekCaptchaRequiredError),
         ("err.user.not.exist", LivoltekUnknownAccountError),
         ("err.account.not.exist", LivoltekUnknownAccountError),
+        ("no.user", LivoltekUnknownAccountError),
         ("token.not.set", LivoltekTokenError),
         ("token.expired", LivoltekTokenError),
         ("token.invalid", LivoltekTokenError),

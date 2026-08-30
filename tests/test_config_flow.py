@@ -184,8 +184,10 @@ async def test_a_captcha_challenge_shows_the_image_step(
         assert result["step_id"] == "captcha"
         assert "captcha_url" in result["description_placeholders"]
 
+        # The captcha form carries the sign-in fields, so the whole set is
+        # resubmitted alongside the code, not the code alone.
         result = await hass.config_entries.flow.async_configure(
-            result["flow_id"], {"image_code": "A1B2"}
+            result["flow_id"], {**CREDENTIALS, "image_code": "A1B2"}
         )
         assert result["step_id"] == "devices"
 
@@ -210,11 +212,47 @@ async def test_a_wrong_captcha_re_renders_the_step_with_a_new_image(
             result["flow_id"], CREDENTIALS
         )
         result = await hass.config_entries.flow.async_configure(
-            result["flow_id"], {"image_code": "WRONG"}
+            result["flow_id"], {**CREDENTIALS, "image_code": "WRONG"}
         )
 
     assert result["step_id"] == "captcha"
     assert result["errors"] == {"base": "invalid_captcha"}
+    assert "captcha_url" in result["description_placeholders"]
+
+
+async def test_wrong_password_after_captcha_re_renders_the_captcha_form(
+    hass: HomeAssistant, mock_setup_entry
+) -> None:
+    """The captcha form carries the sign-in fields, so a rejected password
+    re-renders it in place (with a fresh image and captcha_url), not a bounce
+    back to the credentials step."""
+
+    async def login(self, *, image_id=None, image_code=None):
+        if image_code is None:
+            raise LivoltekCaptchaRequiredError("err.password.need.verify", "verify")
+        raise LivoltekAuthError("err.password", "bad")
+
+    with (
+        patch(
+            "custom_components.livoltek_portal.api.auth.LivoltekAuth.async_login", login
+        ),
+        patch(
+            "custom_components.livoltek_portal.api.client.LivoltekClient.async_get_captcha",
+            AsyncMock(return_value=("img-3", "/9j/4AAQaGk=")),
+        ),
+    ):
+        result = await start(hass)
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], CREDENTIALS
+        )
+        assert result["step_id"] == "captcha"
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {**CREDENTIALS, "image_code": "A1B2"}
+        )
+
+    assert result["step_id"] == "captcha"
+    assert result["errors"] == {"base": "invalid_auth"}
+    assert "captcha_url" in result["description_placeholders"]
 
 
 @pytest.mark.parametrize(
@@ -294,10 +332,14 @@ async def test_reauth_that_needs_a_captcha_routes_through_the_captcha_step(
     entry = build_entry()
     entry.add_to_hass(hass)
 
+    async def login(self, *, image_id=None, image_code=None):
+        if image_code is None:
+            raise LivoltekCaptchaRequiredError("err.code", "need")
+        return Session("tok", EXPIRY, "9001")
+
     with (
         patch(
-            "custom_components.livoltek_portal.api.auth.LivoltekAuth.async_login",
-            AsyncMock(side_effect=LivoltekCaptchaRequiredError("err.code", "need")),
+            "custom_components.livoltek_portal.api.auth.LivoltekAuth.async_login", login
         ),
         patch(
             "custom_components.livoltek_portal.api.client.LivoltekClient.async_get_captcha",
@@ -308,8 +350,16 @@ async def test_reauth_that_needs_a_captcha_routes_through_the_captcha_step(
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"], {"password": "newpass"}
         )
+        assert result["step_id"] == "captcha"
+        assert "captcha_url" in result["description_placeholders"]
 
-    assert result["step_id"] == "captcha"
+        # The reauth captcha form is password + code (no account/region field).
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"password": "newpass", "image_code": "A1B2"}
+        )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
 
 
 async def test_a_failed_reauth_attempt_re_renders_the_same_form(

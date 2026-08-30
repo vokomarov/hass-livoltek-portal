@@ -36,7 +36,10 @@ TOKEN_REFRESH_MARGIN: Final = timedelta(days=3)
 FALLBACK_TOKEN_TTL: Final = timedelta(hours=12)
 
 _DEVICE_NAME: Final = "Home Assistant"
-_DEVICE_TYPE: Final = "phone"
+# Integer device kind, and it must be 0. A string such as "phone" makes the
+# portal treat the login as phone-based and reject an email account with
+# login.phone.account.number.oversize.
+_DEVICE_TYPE: Final = 0
 
 
 def hash_password(plaintext: str) -> str:

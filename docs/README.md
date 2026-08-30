@@ -19,7 +19,6 @@ pages carry the detail.
 | Document | Contents |
 | --- | --- |
 | [Development](development.md) | Layout, running the checks, API notes, releasing |
-| [End-to-end checklist](e2e-checklist.md) | Manual verification against real hardware |
 
 The portal API is undocumented. What the integration knows about it was learned
 by observing the portal's own responses, and holds only for the firmware and
