@@ -37,7 +37,7 @@ def test_the_entity_table_lists_every_entity_and_no_others() -> None:
 def test_every_relative_link_in_the_docs_resolves() -> None:
     """A dead link in documentation fails silently -- GitHub renders it, and
     the reader only finds out by clicking."""
-    pages = [_ROOT / "README.md", *sorted(_ROOT.glob("docs/**/*.md"))]
+    pages = [*sorted(_ROOT.glob("*.md")), *sorted(_ROOT.glob("docs/**/*.md"))]
     broken = [
         f"{page.relative_to(_ROOT)} -> {target}"
         for page in pages
