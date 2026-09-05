@@ -1,6 +1,6 @@
 # Entities
 
-Every selected inverter becomes one device carrying **38 sensors enabled by
+Every selected inverter becomes one device carrying **39 sensors enabled by
 default**, one **Online** binary sensor, and **18 diagnostic sensors** created
 disabled.
 
@@ -18,6 +18,7 @@ is still there when the firmware starts sending it.
 | --- | --- | --- | --- |
 | `battery_soc` | `%` | battery | measurement |
 | `battery_power` | `kW` | power | measurement |
+| `battery_power_energy_dashboard` | `kW` | power | measurement |
 | `battery_status` | — | enum | — |
 | `battery_voltage` | `V` | voltage | measurement |
 | `battery_current` | `A` | current | measurement |
@@ -30,6 +31,11 @@ is still there when the firmware starts sending it.
 
 `battery_soc` is read from the portal's `batteryRestSoc`, not its `batterySOC` —
 the latter is `null` in every payload observed.
+
+**`battery_power_energy_dashboard`** is `battery_power` with the sign flipped to
+Home Assistant's Energy-dashboard convention (positive while discharging). Use
+it only for the dashboard's power-flow slot; everywhere else `battery_power`
+matches the vendor app. See [Power sensor signs](#power-sensor-signs).
 
 **`battery_status`** reports `charging`, `idle`, or `discharging` rather than the
 portal's `1` / `0` / `-1`, so an automation reads:
@@ -163,6 +169,16 @@ freshness.
 
 All five are `kWh` / `total_increasing`, which is what the dashboard requires.
 
+### Live power flow
+
+The dashboard's power-flow view (HA 2025.12+) also takes an optional
+instantaneous power sensor per source. For the battery, use
+`sensor.<device>_battery_power_energy_dashboard`, **not** `battery_power`: the
+flow view is house-centric and expects **positive while discharging**, the
+opposite of the vendor sign that `battery_power` carries. The dashboard twin is
+published with the sign already flipped, so the flow points the right way with
+no template sensor of your own.
+
 The portal rescales units per field — the same account can report today's import
 in kWh and the lifetime import in MWh. The integration converts everything to a
 fixed unit before it reaches Home Assistant, because a unit that flips at the
@@ -177,17 +193,23 @@ transformation:
 | Sensor | Positive | Negative |
 | --- | --- | --- |
 | `battery_power` | Charging | Discharging |
+| `battery_power_energy_dashboard` | Discharging | Charging |
 | `grid_power` | Importing | Exporting (unverified) |
 | `load_power`, `backup_power`, `pv_power` | Always positive | — |
 
 `battery_power` is **positive while charging**. Home Assistant enforces no sign
-convention here and shipped integrations disagree with each other — Tesla
-Powerwall is negative-while-charging, Fronius is positive — so this integration
-matches the vendor's own app rather than picking a side. If you want the
-opposite, a template sensor negating it is two lines on your end.
+convention on a standalone battery-power entity and shipped integrations
+disagree with each other — Tesla Powerwall is negative-while-charging, Fronius
+is positive — so this one matches the vendor's own app rather than picking a
+side. `battery_power_energy_dashboard` carries the same reading with the sign
+flipped to Home Assistant's house-centric flow convention (positive while
+discharging); it exists so you can drop it straight into the Energy dashboard's
+power-flow slot instead of hand-building a negating template sensor.
 
-None of this affects the Energy dashboard, which reads the cumulative `_total`
-counters rather than any instantaneous sensor.
+The cumulative Energy dashboard bars read the `_total` counters, not any
+instantaneous sensor, so the `battery_power` sign never affects them. The live
+power-flow view does read an instantaneous sensor — that is what
+`battery_power_energy_dashboard` is for.
 
 The export direction of `grid_power` is **unverified**: it was confirmed against
 hardware that cannot export, so only the import sign was observable. If you have
