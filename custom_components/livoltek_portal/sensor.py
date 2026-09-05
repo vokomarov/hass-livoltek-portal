@@ -87,6 +87,20 @@ def _epoch_ms_to_datetime(value: Any) -> datetime | None:
     return datetime.fromtimestamp(millis / 1000, tz=UTC)
 
 
+def _battery_flow_power(value: Any) -> float | None:
+    """Re-sign batteryActivePower for the Energy dashboard's power flow.
+
+    The portal reports battery power positive while charging; Home Assistant's
+    power-flow view is house-centric and wants positive while discharging. So
+    negate it -- folding -0.0 back to 0.0 so idle never renders as "-0.0".
+    """
+    try:
+        flipped = -float(value)
+    except (TypeError, ValueError):
+        return None
+    return flipped or 0.0
+
+
 _MEASURE = SensorStateClass.MEASUREMENT
 _TOTAL = SensorStateClass.TOTAL_INCREASING
 _DIAG = EntityCategory.DIAGNOSTIC
@@ -106,11 +120,14 @@ _PRIMARY: tuple[LivoltekSensorEntityDescription, ...] = (
     ),
     # Signed, and published as the portal reports it: POSITIVE CHARGING,
     # NEGATIVE DISCHARGING (probe 03, six captures; batteryCurrent agrees).
-    # Deliberately not flipped. Home Assistant enforces no sign convention on
-    # battery power -- shipped integrations split both ways, and the Energy
-    # dashboard uses the cumulative battery_charged_total /
-    # battery_discharged_total counters, never this sensor. Flipping would only
-    # make the value disagree with the vendor's own app for no gain.
+    # Deliberately not flipped: this row matches the vendor's own app. Home
+    # Assistant enforces no sign convention on a standalone battery-power
+    # entity and shipped integrations split both ways. The Energy dashboard's
+    # cumulative bars read battery_charged_total / battery_discharged_total, but
+    # its live power-flow view (HA 2025.12+) reads an instantaneous sensor and
+    # expects the house-centric sign (positive = discharging) --
+    # battery_power_energy_dashboard below carries that flipped sign for the
+    # flow, while this row stays vendor-faithful.
     LivoltekSensorEntityDescription(
         key="battery_power",
         api_key="batteryActivePower",
@@ -119,6 +136,22 @@ _PRIMARY: tuple[LivoltekSensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfPower.KILO_WATT,
         device_class=SensorDeviceClass.POWER,
         state_class=_MEASURE,
+        suggested_display_precision=3,
+    ),
+    # The same batteryActivePower field, re-signed for the Energy dashboard's
+    # power-flow view: it is house-centric (positive = discharging), the exact
+    # opposite of the vendor sign on battery_power above. Shipping both means
+    # the flow points the right way without the user hand-building a negating
+    # template sensor. Shares battery_power's api_key by design.
+    LivoltekSensorEntityDescription(
+        key="battery_power_energy_dashboard",
+        api_key="batteryActivePower",
+        name="Battery power (Energy dashboard)",
+        unit_family=UnitFamily.POWER,
+        native_unit_of_measurement=UnitOfPower.KILO_WATT,
+        device_class=SensorDeviceClass.POWER,
+        state_class=_MEASURE,
+        value_fn=_battery_flow_power,
         suggested_display_precision=3,
     ),
     LivoltekSensorEntityDescription(

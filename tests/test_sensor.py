@@ -3,6 +3,7 @@ must publish real values from a recorded payload."""
 
 from __future__ import annotations
 
+import math
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
@@ -49,11 +50,32 @@ def snapshot(snapshot: SnapshotAssertion) -> SnapshotAssertion:
 def test_the_table_has_the_expected_shape() -> None:
     keys = [d.key for d in SENSOR_DESCRIPTIONS]
     assert len(keys) == len(set(keys)), "duplicate entity key"
-    api_keys = [d.api_key for d in SENSOR_DESCRIPTIONS]
-    assert len(api_keys) == len(set(api_keys)), "duplicate api key"
-    assert len(SENSOR_DESCRIPTIONS) == 56
+    # api_keys may repeat: battery_power and battery_power_energy_dashboard both
+    # project batteryActivePower (same field, opposite sign). When two rows
+    # share a payload key they must agree on unit_family, because the
+    # coordinator registers exactly one family per key.
+    families_by_key: dict[str, set] = {}
+    for d in SENSOR_DESCRIPTIONS:
+        families_by_key.setdefault(d.api_key, set()).add(d.unit_family)
+    conflicting = {k: f for k, f in families_by_key.items() if len(f) > 1}
+    assert not conflicting, f"api key with conflicting families: {conflicting}"
+    assert len(SENSOR_DESCRIPTIONS) == 57
     enabled = [d for d in SENSOR_DESCRIPTIONS if d.entity_registry_enabled_default]
-    assert len(enabled) == 38
+    assert len(enabled) == 39
+
+
+def test_battery_power_energy_dashboard_uses_the_house_centric_sign() -> None:
+    """battery_power keeps the vendor sign (positive charging); its dashboard
+    twin flips to Home Assistant's flow convention (positive discharging), and
+    idle must read 0.0, never -0.0."""
+    row = next(
+        d for d in SENSOR_DESCRIPTIONS if d.key == "battery_power_energy_dashboard"
+    )
+    assert row.api_key == "batteryActivePower"
+    assert row.value_fn(1.5) == -1.5  # charging -> into battery, negative
+    assert row.value_fn(-2.0) == 2.0  # discharging -> out to house, positive
+    zero = row.value_fn(0.0)
+    assert zero == 0.0 and math.copysign(1.0, zero) == 1.0
 
 
 @pytest.mark.parametrize("description", SENSOR_DESCRIPTIONS, ids=lambda d: d.key)
