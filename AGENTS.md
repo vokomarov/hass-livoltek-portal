@@ -48,8 +48,10 @@ the invariant tests in `test_sensor.py` (unit, device class, and state class
 agree per row).
 
 Adding or renaming a sensor means updating `docs/entities.md` in the same
-change, including the counts in its header sentence. `test_docs.py` fails
-otherwise.
+change, including the counts in its header sentence (`test_docs.py` fails
+otherwise), and bumping the hard-coded totals in
+`test_sensor.py::test_the_table_has_the_expected_shape` (row count and
+enabled-by-default count), then regenerating snapshots.
 
 ## Git strategy
 
@@ -147,6 +149,16 @@ stamps the version into `manifest.json`, builds the ZIP, and attaches it. The
 version committed in `manifest.json` is not the released version and should not
 be "fixed" in a pull request. Full procedure:
 [docs/development.md](docs/development.md#releasing).
+
+**Writing the notes.** Draft them with the `humanizer` skill, and use emoji to
+head the sections — release notes are the one place in this repo where emoji are
+wanted. 📝 Save the draft to `worksheets/release-notes-vX.Y.Z.md` (git-ignored),
+never under `docs/`. Put a short **Highlights** section and, when the change
+needs the user to act (re-map an Energy dashboard slot, re-enable an entity), an
+**Action for existing installs** section *above* the auto-generated
+"What's Changed" list. The `## Install` / `## Documentation` footer is appended
+by the workflow from `.github/release-footer.md` — don't paste it into the
+draft.
 
 ## Documentation
 
